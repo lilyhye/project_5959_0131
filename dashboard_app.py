@@ -193,12 +193,69 @@ if df_raw is not None:
             st.markdown("#### 셀러별 채널별 주문 건수 상세")
             pivot_seller_ch = df_top_sellers.pivot_table(index='셀러명', columns='주문경로', 
                                                          values='UID', aggfunc='count', fill_value=0)
-            # 합계 추가 및 상위 순서 유지
             pivot_seller_ch['합계'] = pivot_seller_ch.sum(axis=1)
             pivot_seller_ch = pivot_seller_ch.loc[top_15_sellers]
             st.dataframe(pivot_seller_ch, use_container_width=True)
+
+            # --- 셀러 월별 활동/유입/이탈 분석 추가 ---
+            st.divider()
+            st.subheader("📅 셀러 월별 활동 및 유입/이탈 현황")
+            
+            # 월별 데이터 준비
+            df_seller_monthly = df.copy()
+            df_seller_monthly['연월'] = df_seller_monthly['주문일'].dt.to_period('M').astype(str)
+            
+            # 월별 활동 셀러 리스트 생성
+            monthly_sellers = df_seller_monthly.groupby('연월')['셀러명'].unique().to_dict()
+            months = sorted(monthly_sellers.keys())
+            
+            activity_stats = []
+            first_seen = df_seller_monthly.groupby('셀러명')['연월'].min().to_dict()
+            
+            for i, month in enumerate(months):
+                current_sellers = set(monthly_sellers[month])
+                # 유입: 이번 달에 처음 본 셀러 수
+                new_sellers = sum(1 for s in current_sellers if first_seen[s] == month)
+                
+                # 이탈율 계산: 지난달엔 있었는데 이번달엔 없는 셀러 (첫 달 제외)
+                churn_rate = 0
+                if i > 0:
+                    prev_sellers = set(monthly_sellers[months[i-1]])
+                    churned_sellers = prev_sellers - current_sellers
+                    churn_rate = (len(churned_sellers) / len(prev_sellers)) * 100
+                
+                inflow_rate = (new_sellers / len(current_sellers)) * 100
+                
+                activity_stats.append({
+                    '연월': month,
+                    '활동셀러수': len(current_sellers),
+                    '신규모집셀러': new_sellers,
+                    '유입율(%)': inflow_rate,
+                    '이탈율(%)': churn_rate
+                })
+            
+            df_activity = pd.DataFrame(activity_stats)
+            
+            # 시각화 1: 활동 셀러 및 신규 셀러 추이
+            fig_act = go.Figure()
+            fig_act.add_trace(go.Bar(x=df_activity['연월'], y=df_activity['활동셀러수'], name='전체 활동 셀러', marker_color='skyblue'))
+            fig_act.add_trace(go.Bar(x=df_activity['연월'], y=df_activity['신규모집셀러'], name='신규 유입 셀러', marker_color='orange'))
+            fig_act.update_layout(title="월별 활동 및 신규 셀러 수 추이", barmode='group')
+            st.plotly_chart(fig_act, use_container_width=True)
+            
+            # 시각화 2: 유입율 및 이탈율 추이
+            fig_rate = px.line(df_activity, x='연월', y=['유입율(%)', '이탈율(%)'], 
+                               markers=True, title="월별 셀러 유입율 및 이탈율 변화")
+            st.plotly_chart(fig_rate, use_container_width=True)
+            
+            # 요약 지표
+            st.markdown("#### 셀러 활동 지표 요약 (월별)")
+            st.dataframe(df_activity.style.format({
+                '유입율(%)': '{:.1f}%',
+                '이탈율(%)': '{:.1f}%'
+            }), use_container_width=True)
         else:
-            st.warning("'셀러명' 또는 '주문경로' 칼럼이 데이터에 존재하지 않습니다.")
+            st.warning("'셀러명' 또는 '주문일' 칼럼이 데이터에 존재하지 않습니다.")
 
     with t6:
         st.subheader("데이터 필터 결과")
