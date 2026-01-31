@@ -118,7 +118,7 @@ if df_raw is not None:
 
     # --- 메인 대시보드 UI ---
     st.title("📊 통합 데이터 분석 대시보드")
-    st.info("`final_comprehensive_report.md`의 분석 항목을 실시간으로 시각화합니다.")
+    st.info("`generate_final_report.py`의 분석 항목을 실시간으로 시각화합니다.")
 
     # 재구매 지표 계산을 위한 기초 데이터 준비 (날짜 기준)
     id_col_kpi = '주문자연락처' if '주문자연락처' in df_raw.columns else 'UID'
