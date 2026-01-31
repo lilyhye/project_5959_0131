@@ -327,6 +327,58 @@ if df_raw is not None:
                         }), use_container_width=True)
                     else:
                         st.warning("'상품명' 칼럼이 없어 키워드 분석을 진행할 수 없습니다.")
+
+                    # --- 셀러 성장성 분석 및 마케팅 제언 추가 ---
+                    st.divider()
+                    st.subheader("🚀 셀러 성장성 분석 및 마케팅 제언")
+
+                    # 최근 2개월 비교 데이터 준비
+                    months_sorted = sorted(df_seller_active['연월'].unique(), reverse=True)
+                    if len(months_sorted) >= 2:
+                        current_m = months_sorted[0]
+                        prev_m = months_sorted[1]
+                        
+                        st.info(f"분석 기간: {prev_m} (전월) vs {current_m} (당월)")
+                        
+                        # 월별 셀러 판매량 집계
+                        m_counts = df_seller_active[df_seller_active['연월'].isin([current_m, prev_m])]
+                        seller_growth = m_counts.groupby(['셀러명', '연월']).size().unstack(fill_value=0)
+                        
+                        # 증감량 계산
+                        if current_m in seller_growth.columns and prev_m in seller_growth.columns:
+                            seller_growth['증감량'] = seller_growth[current_m] - seller_growth[prev_m]
+                            seller_growth['증감율(%)'] = (seller_growth['증감량'] / seller_growth[prev_m] * 100).replace([np.inf, -np.inf], 100).fillna(100)
+                            
+                            col_g1, col_g2 = st.columns(2)
+                            
+                            def get_marketing_advice(change, is_surge=True):
+                                if is_surge:
+                                    return "성공 채널 예산 확대, 충성 고객 전용 감사 쿠폰, 리뷰 이벤트 강화, 연관 상품 큐레이션"
+                                else:
+                                    return "이탈 방지 리마인드 알림, 단기 할인 프로모션, 인기 품목 재입고 안내, 유입 채널 광고 소재 교체"
+
+                            with col_g1:
+                                st.success(f"🔥 판매량 급증 셀러 Top 10 ({current_m} 기준)")
+                                surge_top10 = seller_growth.sort_values('증감량', ascending=False).head(10).reset_index()
+                                surge_top10['마케팅 추천 전략'] = surge_top10['증감량'].apply(lambda x: get_marketing_advice(x, True))
+                                st.dataframe(surge_top10[['셀러명', prev_m, current_m, '증감량', '마케팅 추천 전략']], use_container_width=True)
+                                
+                            with col_g2:
+                                st.error(f"⚠️ 판매량 급감 셀러 Top 10 ({current_m} 기준)")
+                                decline_top10 = seller_growth.sort_values('증감량', ascending=True).head(10).reset_index()
+                                decline_top10['마케팅 추천 전략'] = decline_top10['증감량'].apply(lambda x: get_marketing_advice(x, False))
+                                st.dataframe(decline_top10[['셀러명', prev_m, current_m, '증감량', '마케팅 추천 전략']], use_container_width=True)
+                                
+                            # 시각화: 증감량 분포
+                            fig_growth = px.bar(pd.concat([surge_top10, decline_top10]), 
+                                                x='증감량', y='셀러명', color='증감량',
+                                                title="셀러별 판매량 변화 폭 (Top 10 급증/급감)",
+                                                color_continuous_scale='RdYlGn', orientation='h')
+                            st.plotly_chart(fig_growth, use_container_width=True)
+                        else:
+                            st.warning("비교할 수 있는 월별 데이터가 부족합니다.")
+                    else:
+                        st.info("성장성 분석을 위해서는 최소 2개월 이상의 데이터가 필요합니다.")
                 else:
                     st.info("활동 지표를 계산할 수 있는 충분한 데이터가 없습니다.")
             else:
