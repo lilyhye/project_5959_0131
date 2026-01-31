@@ -40,7 +40,7 @@ def load_data(file_path):
 st.sidebar.header("📊 분석 필터")
 
 # 데이터 파일 경로 설정 (사용자 요청 절대 경로)
-data_path = r'project1_5959.csv'
+data_path = 'project1_5959.csv'
 
 if os.path.exists(data_path):
     df_raw = load_data(data_path)
