@@ -277,6 +277,56 @@ if df_raw is not None:
                         '유입율(%)': '{:.1f}%',
                         '이탈율(%)': '{:.1f}%'
                     }), use_container_width=True)
+
+                    # --- 상위 30개 셀러 키워드 전략 분석 추가 ---
+                    st.divider()
+                    st.subheader("🎯 상위 30개 셀러의 키워드 활용 전략")
+                    
+                    if '상품명' in df.columns:
+                        # 상위 30개 셀러 추출
+                        top_30_sellers = df['셀러명'].value_counts().head(30).index.tolist()
+                        df_top_30 = df[df['셀러명'].isin(top_30_sellers)].copy()
+                        df_top_30['상품명_clean'] = df_top_30['상품명'].fillna('')
+                        
+                        kw_categories = {
+                            '이벤트': ['1\+1', '사전예약'],
+                            '맛강조': ['과즙폭발', '꿀', '당도'],
+                            '가성비': ['실속'],
+                            '품종': ['타이벡', '조생'],
+                            '원산지': ['제주', '해남']
+                        }
+                        
+                        seller_kw_list = []
+                        for seller in top_30_sellers:
+                            df_s = df_top_30[df_top_30['셀러명'] == seller]
+                            total_s = len(df_s)
+                            
+                            row = {'셀러명': seller, '총주문건수': total_s}
+                            for cat, keywords in kw_categories.items():
+                                pattern = '|'.join(keywords)
+                                count = df_s['상품명_clean'].str.contains(pattern, case=False, regex=True).sum()
+                                row[cat] = (count / total_s * 100) if total_s > 0 else 0
+                            
+                            seller_kw_list.append(row)
+                        
+                        df_seller_kw = pd.DataFrame(seller_kw_list)
+                        
+                        # 시각화: 히트맵 (셀러별 키워드 활용 비중)
+                        fig_hm = px.imshow(df_seller_kw.set_index('셀러명').drop(columns=['총주문건수']),
+                                           labels=dict(x="키워드 카테고리", y="셀러명", color="사용 비중(%)"),
+                                           x=['이벤트', '맛강조', '가성비', '품종', '원산지'],
+                                           title="상위 30개 셀러의 키워드 활용 패턴 (Heatmap)",
+                                           color_continuous_scale='YlGnBu', text_auto='.1f')
+                        fig_hm.update_layout(height=800)
+                        st.plotly_chart(fig_hm, use_container_width=True)
+                        
+                        # 데이터 표
+                        st.markdown("#### 셀러별 키워드 활용 상세 (비중 %)")
+                        st.dataframe(df_seller_kw.style.format({
+                            '이벤트': '{:.1f}%', '맛강조': '{:.1f}%', '가성비': '{:.1f}%', '품종': '{:.1f}%', '원산지': '{:.1f}%'
+                        }), use_container_width=True)
+                    else:
+                        st.warning("'상품명' 칼럼이 없어 키워드 분석을 진행할 수 없습니다.")
                 else:
                     st.info("활동 지표를 계산할 수 있는 충분한 데이터가 없습니다.")
             else:
