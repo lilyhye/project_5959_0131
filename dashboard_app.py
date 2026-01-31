@@ -50,26 +50,33 @@ def calculate_rfm(df):
     if df.empty:
         return pd.DataFrame(columns=['Recency', 'Frequency', 'Monetary', 'R_Score', 'F_Score', 'M_Score', 'Total_Score', 'Segment'])
         
+    # 날짜 시간 분리 (날짜만 기준으로 재구매 판단)
+    df_rfm = df.copy()
+    df_rfm['주문날짜'] = df_rfm['주문일'].dt.date
+    
     snapshot_date = df['주문일'].max() + pd.Timedelta(days=1)
-    rfm = df.groupby('UID').agg({
+    
+    # 식별자: 주문자연락처 (없으면 UID 사용)
+    id_col = '주문자연락처' if '주문자연락처' in df.columns else 'UID'
+    
+    # 집계: Frequency는 서로 다른 주문날짜의 수
+    rfm = df_rfm.groupby(id_col).agg({
         '주문일': lambda x: (snapshot_date - x.max()).days,
-        'UID': 'count',
+        '주문날짜': 'nunique',
         '실결제 금액': 'sum'
     })
     rfm.columns = ['Recency', 'Frequency', 'Monetary']
     
-    # 5점 척도 스코어링 (데이터 분포 고려)
+    # 5점 척도 스코어링
     for col, labels in [('Recency', [5,4,3,2,1]), ('Frequency', [1,2,3,4,5]), ('Monetary', [1,2,3,4,5])]:
         try:
-            # 유니크 값이 부족한 경우 rank(method='first')로 강제 할당
             rfm[f'{col[0]}_Score'] = pd.qcut(rfm[col].rank(method='first'), 5, labels=labels)
         except:
             try:
                 rfm[f'{col[0]}_Score'] = pd.cut(rfm[col], 5, labels=labels)
             except:
-                rfm[f'{col[0]}_Score'] = 3 # 기본값 처리
+                rfm[f'{col[0]}_Score'] = 3
             
-    # 스코어 합산 전 NaN 처리 및 타입 변환 보장
     for score_col in ['R_Score', 'F_Score', 'M_Score']:
         rfm[score_col] = pd.to_numeric(rfm[score_col], errors='coerce').fillna(3).astype(int)
         
@@ -113,12 +120,17 @@ if df_raw is not None:
     st.title("📊 통합 데이터 분석 대시보드")
     st.info("`final_comprehensive_report.md`의 분석 항목을 실시간으로 시각화합니다.")
 
-    # KPI Metrics
-    m1, m2, m3, m4 = st.columns(4)
+    # 재구매 지표 계산을 위한 기초 데이터 준비 (날짜 기준)
+    id_col = '주문자연락처' if '주문자연락처' in df_raw.columns else 'UID'
+    df_unique_day = df.groupby([id_col, df['주문일'].dt.date]).size().reset_index()
+    user_day_counts = df_unique_day.groupby(id_col).size()
+    repeat_users_count = (user_day_counts >= 2).sum()
+    total_users_count = len(user_day_counts)
+    
     m1.metric("총 주문 건수", f"{len(df):,}건")
     m2.metric("총 매출액", f"₩{int(df['실결제 금액'].sum()):,}원")
     m3.metric("평균 객단가", f"₩{int(df['실결제 금액'].mean()):,}원" if len(df)>0 else "0")
-    m4.metric("재구매율(전체)", f"{(df['재구매 횟수'] > 0).mean()*100:.1f}%" if '재구매 횟수' in df.columns else "N/A")
+    m4.metric("재구매율(날짜기준)", f"{(repeat_users_count / total_users_count * 100):.1f}%" if total_users_count > 0 else "N/A")
 
     # 탭 구성
     t1, t2, t3, t4, t5, t6, t7 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "� 키워드 매출 분석", "�📋 상세 데이터"])
@@ -145,70 +157,85 @@ if df_raw is not None:
                            category_orders={"시즌": ["봄", "여름", "가을", "겨울"]})
             st.plotly_chart(fig_s, use_container_width=True)
         with col_s2:
-            if '재구매 횟수' in df.columns:
-                re_rate = df.groupby('품종').apply(lambda x: (x['재구매 횟수'] > 0).mean() * 100).reset_index(name='재구매율(%)')
-                fig_re = px.bar(re_rate.sort_values('재구매율(%)', ascending=False).head(10), 
-                                x='재구매율(%)', y='품종', orientation='h', title="품종별 재구매율 Top 10", color='재구매율(%)')
-                st.plotly_chart(fig_re, use_container_width=True)
+            # 품종별 재구매율 (다른 날 주문한 경우만)
+            item_day_counts = df.groupby(['품종', id_col, df['주문일'].dt.date]).size().reset_index()
+            item_user_counts = item_day_counts.groupby(['품종', id_col]).size().reset_index(name='day_count')
+            
+            re_rate_logic = item_user_counts.groupby('품종').apply(
+                lambda x: (x['day_count'] >= 2).mean() * 100
+            ).reset_index(name='재구매율(%)')
+            
+            fig_re = px.bar(re_rate_logic.sort_values('재구매율(%)', ascending=False).head(10), 
+                            x='재구매율(%)', y='품종', orientation='h', title="품종별 재구매율 Top 10 (날짜기준)", color='재구매율(%)')
+            st.plotly_chart(fig_re, use_container_width=True)
 
         st.divider()
         st.subheader("🔁 재구매 고객 구매 패턴 상세 분석")
         
-        # 재구매 데이터 필터링 (UID별 주문 건수 2건 이상)
-        uid_counts = df['UID'].value_counts()
-        repeat_uids = uid_counts[uid_counts >= 2].index
-        df_repeat = df[df['UID'].isin(repeat_uids)].sort_values(['UID', '주문일'])
+        # 재구매 데이터 필터링 (아이디별 서로 다른 주문 일수 2일 이상)
+        user_day_counts = df.groupby(id_col)[['주문일']].agg(lambda x: x.dt.date.nunique())
+        repeat_ids = user_day_counts[user_day_counts.iloc[:, 0] >= 2].index
+        
+        # 실제 재구매가 일어난 날들만 추출 (동일 날짜 주문은 1건으로 처리하기 위해 unique date로 접근)
+        df_target = df[df[id_col].isin(repeat_ids)].copy()
+        df_target['주문날짜'] = df_target['주문일'].dt.date
+        df_repeat = df_target.drop_duplicates(subset=[id_col, '주문날짜']).sort_values([id_col, '주문일'])
         
         if not df_repeat.empty:
             col_p1, col_p2 = st.columns(2)
             
             with col_p1:
-                # 1. 재구매 빈도 분포 (주문 횟수별 고객 수)
-                freq_dist = uid_counts.value_counts().reset_index(name='customer_count')
-                freq_dist.columns = ['주문횟수', '고객수']
-                freq_dist['구분'] = freq_dist['주문횟수'].apply(lambda x: f"{x}회" if x < 5 else "5회 이상")
+                # 1. 재구매 빈도 분포 (구매 일수별 고객 수)
+                freq_dist = user_day_counts.value_counts().reset_index(name='customer_count')
+                freq_dist.columns = ['구매일수', '고객수']
+                freq_dist['구분'] = freq_dist['구매일수'].apply(lambda x: f"{x}일" if x < 5 else "5일 이상")
                 freq_summary = freq_dist.groupby('구분')['고객수'].sum().reset_index()
                 
                 if not freq_summary.empty and freq_summary['고객수'].sum() > 0:
-                    fig_freq = px.pie(freq_summary, values='고객수', names='구분', title="고객별 총 주문 횟수 비중",
+                    fig_freq = px.pie(freq_summary, values='고객수', names='구분', title="고객별 총 구매 일수 비중",
                                       hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
                     st.plotly_chart(fig_freq, use_container_width=True)
                 else:
                     st.info("빈도 분포를 표시할 데이터가 없습니다.")
                 
             with col_p2:
-                # 2. 구매 주기 분석 (연속 주문 간의 일수 차이)
-                df_repeat['prev_date'] = df_repeat.groupby('UID')['주문일'].shift(1)
-                df_repeat['interval'] = (df_repeat['주문일'] - df_repeat['prev_date']).dt.days
+                # 2. 구매 주기 분석 (연속 주문 일자 간의 일수 차이)
+                df_repeat['prev_date'] = df_repeat.groupby(id_col)['주문날짜'].shift(1)
+                df_repeat['interval'] = (df_repeat['주문날짜'] - df_repeat['prev_date']).apply(lambda x: x.days if pd.notnull(x) else np.nan)
                 intervals = df_repeat['interval'].dropna()
                 
                 if not intervals.empty:
                     fig_dist = px.histogram(intervals, x='interval', nbins=50, 
-                                            title="재구매 고객의 주문 간격 분포 (Days)",
-                                            labels={'interval': '구매 간격 (일)', 'count': '주문 건수'},
+                                            title="재구매 고객의 방문 간격 분포 (Days)",
+                                            labels={'interval': '구매 간격 (일)', 'count': '방문 횟수'},
                                             color_discrete_sequence=['indianred'])
                     st.plotly_chart(fig_dist, use_container_width=True)
                     st.info(f"💡 재구매 고객의 평균 구매 주기는 약 **{intervals.mean():.1f}일**입니다.")
             
-            # 3. 재구매 고객이 선호하는 품종 Top 10 (재구매 건수 기준)
+            # 3. 재구매 고객이 선호하는 품종 Top 10
             st.markdown("#### ⭐ 재구매 고객의 주요 구매 품종")
-            df_repeat_items = df_repeat.groupby('품종').size().reset_index(name='재구매주문건수')
-            if not df_repeat_items.empty:
-                fig_rep_items = px.bar(df_repeat_items.sort_values('재구매주문건수', ascending=False).head(10),
+            # 재구매 발생 시점(2회차 이상)의 품종 집계
+            df_re_items = df_target.sort_values([id_col, '주문일'])
+            df_re_items['order_rank'] = df_re_items.groupby(id_col)['주문날짜'].transform(lambda x: pd.factorize(x)[0] + 1)
+            df_repeat_only = df_re_items[df_re_items['order_rank'] >= 2]
+            
+            df_repeat_items_stats = df_repeat_only.groupby('품종').size().reset_index(name='재구매주문건수')
+            if not df_repeat_items_stats.empty:
+                fig_rep_items = px.bar(df_repeat_items_stats.sort_values('재구매주문건수', ascending=False).head(10),
                                        x='재구매주문건수', y='품종', orientation='h', color='재구매주문건수',
-                                       title="재구매 고객이 가장 많이 찾는 품종 Top 10")
+                                       title="재구매 고객이 다시 찾은 품종 Top 10")
                 st.plotly_chart(fig_rep_items, use_container_width=True)
             else:
-                st.info("재구매 선호 품종을 분석할 데이터가 부족합니다.")
+                st.info("재구매 발생 품종을 분석할 데이터가 부족합니다.")
 
             # 데이터 표
-            st.markdown("#### 재구매 행동 지표 요약")
+            st.markdown("#### 재구매 행동 지표 요약 (날짜기준)")
             summary_stats = pd.DataFrame({
-                '지표': ['총 재구매 고객 수', '평균 재구매 횟수', '최대 재구매 횟수', '평균 구매 주기'],
+                '지표': ['총 재구매 고객 수', '평균 구매 일수', '최대 구매 일수', '평균 구매 주기'],
                 '수치': [
-                    f"{len(repeat_uids):,}명",
-                    f"{uid_counts[repeat_uids].mean():.2f}회",
-                    f"{uid_counts.max():,}회",
+                    f"{len(repeat_ids):,}명",
+                    f"{user_day_counts.loc[repeat_ids].mean().iloc[0]:.2f}일",
+                    f"{user_day_counts.max().iloc[0]:,}일",
                     f"{intervals.mean():.1f}일" if not intervals.empty else "N/A"
                 ]
             })
