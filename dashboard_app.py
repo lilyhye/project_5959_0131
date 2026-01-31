@@ -182,7 +182,7 @@ if df_raw is not None:
 
     with t6:
         st.subheader("최종 통합 데이터 분석 보고서")
-        report_path = os.path.join(os.path.dirname(os.path.abspath(data_path)), 'final_comprehensive_report.md')
+        report_path = os.path.join(os.path.dirname(os.path.abspath(data_path)), 'generate_final_report.py')
         
         if os.path.exists(report_path):
             with open(report_path, 'r', encoding='utf-8-sig') as f:
