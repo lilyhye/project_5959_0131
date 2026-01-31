@@ -73,7 +73,7 @@ def calculate_rfm(df):
     return rfm
 
 # 앱 시작
-data_path = r'C:\Users\JMC003\Desktop\icb6_20260103\Project1_5959\project1_5959.csv'
+data_path ='project1_5959.csv'
 df_raw = load_and_preprocess(data_path)
 
 if df_raw is not None:
