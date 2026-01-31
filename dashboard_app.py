@@ -39,9 +39,8 @@ def load_data(file_path):
 # 사이드바 구성
 st.sidebar.header("📊 분석 필터")
 
-# 데이터 파일 경로 설정 (상대 경로 사용으로 호환성 확보)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-data_path = os.path.join(current_dir, 'project1_5959.csv')
+# 데이터 파일 경로 설정 (사용자 요청 절대 경로)
+data_path = r'C:\Users\JMC003\Desktop\icb6_20260103\Project1_5959\project1_5959.csv'
 
 if os.path.exists(data_path):
     df_raw = load_data(data_path)
