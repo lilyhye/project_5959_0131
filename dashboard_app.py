@@ -110,7 +110,7 @@ if df_raw is not None:
     m4.metric("재구매율(전체)", f"{(df['재구매 횟수'] > 0).mean()*100:.1f}%" if '재구매 횟수' in df.columns else "N/A")
 
     # 탭 구성
-    t1, t2, t3, t4, t5, t6 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "📋 상세 데이터"])
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "� 키워드 매출 분석", "�📋 상세 데이터"])
 
     with t1:
         st.subheader("키워드 기반 주문/매출 트렌드")
@@ -158,6 +158,26 @@ if df_raw is not None:
             fig_scatter = px.scatter(rfm_data.sample(min(len(rfm_data), 1000)), x='Frequency', y='Monetary', color='Segment', 
                                     size='Recency', log_x=True, title="고객 세그먼트 산점도 (샘플링)")
             st.plotly_chart(fig_scatter, use_container_width=True)
+
+        st.divider()
+        st.subheader("👨‍🌾 셀러별 재구매율 현황")
+        if '셀러명' in df.columns and '재구매 횟수' in df.columns:
+            # 셀러별 재구매율 계산 (주문 10건 이상 셀러 대상)
+            seller_counts = df['셀러명'].value_counts()
+            valid_sellers = seller_counts[seller_counts >= 10].index
+            df_valid_sellers = df[df['셀러명'].isin(valid_sellers)]
+            
+            seller_re_rate = df_valid_sellers.groupby('셀러명').apply(
+                lambda x: (x['재구매 횟수'] > 0).mean() * 100
+            ).reset_index(name='재구매율(%)')
+            
+            fig_seller_re = px.bar(seller_re_rate.sort_values('재구매율(%)', ascending=False).head(20),
+                                   x='재구매율(%)', y='셀러명', orientation='h', 
+                                   title="셀러별 재구매율 Top 20 (주문 10건 이상)",
+                                   color='재구매율(%)', color_continuous_scale='Viridis')
+            st.plotly_chart(fig_seller_re, use_container_width=True)
+        else:
+            st.warning("'셀러명' 또는 '재구매 횟수' 데이터가 부족합니다.")
 
     with t4:
         st.subheader("지역 및 채널 분석")
@@ -265,6 +285,68 @@ if df_raw is not None:
             st.warning("'셀러명' 또는 '주문일' 칼럼이 데이터에 존재하지 않습니다.")
 
     with t6:
+        st.subheader("🔍 상품 키워드별 매출 기여도 분석")
+        
+        if '상품명' in df.columns:
+            # 키워드 카테고리 정의
+            kw_categories = {
+                '이벤트': ['1\+1', '사전예약'],
+                '맛강조': ['과즙폭발', '꿀', '당도'],
+                '가성비': ['실속'],
+                '품종': ['타이벡', '조생'],
+                '원산지': ['제주', '해남']
+            }
+            
+            # 검색을 위해 미리 처리
+            df_kw = df.copy()
+            df_kw['상품명_clean'] = df_kw['상품명'].fillna('')
+            df_kw['연월'] = df_kw['주문일'].dt.to_period('M').astype(str)
+            
+            monthly_total_sales = df_kw.groupby('연월')['실결제 금액'].sum()
+            
+            kw_results = []
+            
+            for cat, keywords in kw_categories.items():
+                # 해당 카테고리의 어떤 키워드라도 포함된 주문 필터링
+                pattern = '|'.join(keywords)
+                mask_cat = df_kw['상품명_clean'].str.contains(pattern, case=False, regex=True)
+                df_cat = df_kw[mask_cat]
+                
+                # 월별 매출 합계
+                cat_monthly_sales = df_cat.groupby('연월')['실결제 금액'].sum()
+                
+                for month in monthly_total_sales.index:
+                    sales_val = cat_monthly_sales.get(month, 0)
+                    total_val = monthly_total_sales[month]
+                    ratio = (sales_val / total_val * 100) if total_val > 0 else 0
+                    
+                    kw_results.append({
+                        '연월': month,
+                        '카테고리': cat,
+                        '매출액': sales_val,
+                        '비중(%)': ratio
+                    })
+            
+            df_kw_final = pd.DataFrame(kw_results)
+            
+            # 시각화 1: 카테고리별 월별 매출 비중 추이
+            fig_kw_line = px.line(df_kw_final, x='연월', y='비중(%)', color='카테고리', markers=True,
+                                  title="월별 상품 키워드 카테고리 매출 비중 (%)")
+            st.plotly_chart(fig_kw_line, use_container_width=True)
+            
+            # 시각화 2: 누적 매출 비중 (Stack Bar)
+            fig_kw_stack = px.bar(df_kw_final, x='연월', y='비중(%)', color='카테고리',
+                                  title="월별 키워드 매출 기여도 누적 분포", barmode='relative')
+            st.plotly_chart(fig_kw_stack, use_container_width=True)
+            
+            # 데이터 표
+            st.markdown("#### 키워드 카테고리별 월 매출 비중 상세")
+            pivot_kw = df_kw_final.pivot(index='연월', columns='카테고리', values='비중(%)').fillna(0)
+            st.dataframe(pivot_kw.style.format("{:.1f}%"), use_container_width=True)
+        else:
+            st.warning("'상품명' 칼럼이 데이터에 존재하지 않아 키워드 분석이 불가능합니다.")
+
+    with t7:
         st.subheader("데이터 필터 결과")
         st.write(f"현재 조건에 해당하는 데이터: {len(df):,}건")
         st.dataframe(df.head(500), use_container_width=True)
