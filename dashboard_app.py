@@ -110,7 +110,7 @@ if df_raw is not None:
     m4.metric("재구매율(전체)", f"{(df['재구매 횟수'] > 0).mean()*100:.1f}%" if '재구매 횟수' in df.columns else "N/A")
 
     # 탭 구성
-    t1, t2, t3, t4, t5, t6 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "📋 상세 데이터", "📜 최종 통합 분석 보고서"])
+    t1, t2, t3, t4, t5 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "📋 상세 데이터"])
 
     with t1:
         st.subheader("키워드 기반 주문/매출 트렌드")
@@ -179,41 +179,6 @@ if df_raw is not None:
         st.dataframe(df.head(500), use_container_width=True)
         csv_data = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         st.download_button("📥 필터링된 데이터 다운로드 (CSV)", csv_data, "filtered_data.csv", "text/csv")
-
-    with t6:
-        st.subheader("최종 통합 데이터 분석 보고서")
-        report_path = os.path.join(os.path.dirname(os.path.abspath(data_path)), 'generate_final_report.py')
-        
-        if os.path.exists(report_path):
-            with open(report_path, 'r', encoding='utf-8-sig') as f:
-                report_content = f.read()
-            
-            # 마크다운 내 이미지 태그를 처리하여 st.image로 출력하는 로직
-            import re
-            parts = re.split(r'(!\[.*?\]\(.*?\))', report_content)
-            base_dir = os.path.dirname(report_path)
-            
-            for part in parts:
-                img_match = re.match(r'!\[(.*?)\]\((.*?)\)', part)
-                if img_match:
-                    alt_text = img_match.group(1)
-                    img_path = img_match.group(2)
-                    # 상대 경로를 절대 경로로 변환
-                    if not os.path.isabs(img_path):
-                        # 상대 경로를 절대 경로로 변환 (./eda_results/... 형태 대응)
-                        clean_path = img_path.lstrip('./')
-                        full_img_path = os.path.normpath(os.path.join(base_dir, clean_path))
-                    else:
-                        full_img_path = img_path
-                        
-                    if os.path.exists(full_img_path):
-                        st.image(full_img_path, caption=alt_text, use_container_width=True)
-                    else:
-                        st.warning(f"이미지를 찾을 수 없습니다: {full_img_path}")
-                else:
-                    st.markdown(part)
-        else:
-            st.warning(f"보고서 파일을 찾을 수 없습니다: {report_path}")
 
 else:
     st.error(f"데이터 파일을 찾을 수 없습니다: {data_path}")
