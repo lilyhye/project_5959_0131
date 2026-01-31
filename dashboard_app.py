@@ -117,7 +117,7 @@ if df_raw is not None:
     df = df_raw[mask]
 
     # --- 메인 대시보드 UI ---
-    st.title("📊 통합 데이터 분석 대시보드")
+    st.title("📊 통합 데이터 분석 대시보드 (v2.1)")
     st.info("`generate_final_report.py`의 분석 항목을 실시간으로 시각화합니다.")
 
     # 재구매 지표 계산을 위한 기초 데이터 준비 (날짜 기준)
@@ -127,12 +127,12 @@ if df_raw is not None:
     repeat_users_count_kpi = (user_day_counts_kpi >= 2).sum()
     total_users_count_kpi = len(user_day_counts_kpi)
 
-    # 상단 지표 레이아웃
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("총 주문 건수", f"{len(df):,}건")
-    m2.metric("총 매출액", f"₩{int(df['실결제 금액'].sum()):,}원")
-    m3.metric("평균 객단가", f"₩{int(df['실결제 금액'].mean()):,}원" if len(df)>0 else "0")
-    m4.metric("재구매율(날짜기준)", f"{(repeat_users_count_kpi / total_users_count_kpi * 100):.1f}%" if total_users_count_kpi > 0 else "N/A")
+    # 상단 지표 레이아웃 및 출력 (NameError 방지를 위해 할당 즉시 사용)
+    cols_kpi = st.columns(4)
+    cols_kpi[0].metric("총 주문 건수", f"{len(df):,}건")
+    cols_kpi[1].metric("총 매출액", f"₩{int(df['실결제 금액'].sum()):,}원")
+    cols_kpi[2].metric("평균 객단가", f"₩{int(df['실결제 금액'].mean()):,}원" if len(df)>0 else "0")
+    cols_kpi[3].metric("재구매율(날짜기준)", f"{(repeat_users_count_kpi / total_users_count_kpi * 100):.1f}%" if total_users_count_kpi > 0 else "N/A")
 
     # 탭 구성
     t1, t2, t3, t4, t5, t6, t7 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "🔍 키워드 매출 분석", "📋 상세 데이터"])
