@@ -47,6 +47,9 @@ def load_and_preprocess(file_path):
 
 # RFM 분석 함수
 def calculate_rfm(df):
+    if df.empty:
+        return pd.DataFrame(columns=['Recency', 'Frequency', 'Monetary', 'R_Score', 'F_Score', 'M_Score', 'Total_Score', 'Segment'])
+        
     snapshot_date = df['주문일'].max() + pd.Timedelta(days=1)
     rfm = df.groupby('UID').agg({
         '주문일': lambda x: (snapshot_date - x.max()).days,
@@ -58,11 +61,19 @@ def calculate_rfm(df):
     # 5점 척도 스코어링 (데이터 분포 고려)
     for col, labels in [('Recency', [5,4,3,2,1]), ('Frequency', [1,2,3,4,5]), ('Monetary', [1,2,3,4,5])]:
         try:
+            # 유니크 값이 부족한 경우 rank(method='first')로 강제 할당
             rfm[f'{col[0]}_Score'] = pd.qcut(rfm[col].rank(method='first'), 5, labels=labels)
         except:
-            rfm[f'{col[0]}_Score'] = pd.cut(rfm[col], 5, labels=labels)
+            try:
+                rfm[f'{col[0]}_Score'] = pd.cut(rfm[col], 5, labels=labels)
+            except:
+                rfm[f'{col[0]}_Score'] = 3 # 기본값 처리
             
-    rfm['Total_Score'] = rfm['R_Score'].astype(int) + rfm['F_Score'].astype(int) + rfm['M_Score'].astype(int)
+    # 스코어 합산 전 NaN 처리 및 타입 변환 보장
+    for score_col in ['R_Score', 'F_Score', 'M_Score']:
+        rfm[score_col] = pd.to_numeric(rfm[score_col], errors='coerce').fillna(3).astype(int)
+        
+    rfm['Total_Score'] = rfm['R_Score'] + rfm['F_Score'] + rfm['M_Score']
     
     def segment_customer(score):
         if score >= 13: return 'VVIP (최상위)'
@@ -157,9 +168,12 @@ if df_raw is not None:
                 freq_dist['구분'] = freq_dist['주문횟수'].apply(lambda x: f"{x}회" if x < 5 else "5회 이상")
                 freq_summary = freq_dist.groupby('구분')['고객수'].sum().reset_index()
                 
-                fig_freq = px.pie(freq_summary, values='고객수', names='구분', title="고객별 총 주문 횟수 비중",
-                                  hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-                st.plotly_chart(fig_freq, use_container_width=True)
+                if not freq_summary.empty and freq_summary['고객수'].sum() > 0:
+                    fig_freq = px.pie(freq_summary, values='고객수', names='구분', title="고객별 총 주문 횟수 비중",
+                                      hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                    st.plotly_chart(fig_freq, use_container_width=True)
+                else:
+                    st.info("빈도 분포를 표시할 데이터가 없습니다.")
                 
             with col_p2:
                 # 2. 구매 주기 분석 (연속 주문 간의 일수 차이)
@@ -177,11 +191,13 @@ if df_raw is not None:
             
             # 3. 재구매 고객이 선호하는 품종 Top 10 (재구매 건수 기준)
             st.markdown("#### ⭐ 재구매 고객의 주요 구매 품종")
-            df_repeat_items = df_repeat.groupby('품종').size().reset_index(name='재구매주문건수')
-            fig_rep_items = px.bar(df_repeat_items.sort_values('재구매주문건수', ascending=False).head(10),
-                                   x='재구매주문건수', y='품종', orientation='h', color='재구매주문건수',
-                                   title="재구매 고객이 가장 많이 찾는 품종 Top 10")
-            st.plotly_chart(fig_rep_items, use_container_width=True)
+            if not df_repeat_items.empty:
+                fig_rep_items = px.bar(df_repeat_items.sort_values('재구매주문건수', ascending=False).head(10),
+                                       x='재구매주문건수', y='품종', orientation='h', color='재구매주문건수',
+                                       title="재구매 고객이 가장 많이 찾는 품종 Top 10")
+                st.plotly_chart(fig_rep_items, use_container_width=True)
+            else:
+                st.info("재구매 선호 품종을 분석할 데이터가 부족합니다.")
 
             # 데이터 표
             st.markdown("#### 재구매 행동 지표 요약")
@@ -204,9 +220,12 @@ if df_raw is not None:
         col_r1, col_r2 = st.columns([1, 2])
         with col_r1:
             seg_counts = rfm_data['Segment'].value_counts().reset_index()
-            fig_pie = px.pie(seg_counts, values='count', names='Segment', title="고객 세그먼트 비중",
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            if not seg_counts.empty and seg_counts['count'].sum() > 0:
+                fig_pie = px.pie(seg_counts, values='count', names='Segment', title="고객 세그먼트 비중",
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("세그먼트 비중을 표시할 데이터가 없습니다.")
         with col_r2:
             seg_stats = rfm_data.groupby('Segment')[['Recency', 'Frequency', 'Monetary']].mean().reset_index()
             # 포맷팅용 가공
@@ -214,9 +233,12 @@ if df_raw is not None:
             seg_stats_display['Monetary'] = seg_stats_display['Monetary'].apply(lambda x: f"₩{int(x):,}")
             st.dataframe(seg_stats_display, use_container_width=True)
             
-            fig_scatter = px.scatter(rfm_data.sample(min(len(rfm_data), 1000)), x='Frequency', y='Monetary', color='Segment', 
-                                    size='Recency', log_x=True, title="고객 세그먼트 산점도 (샘플링)")
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            if not rfm_data.empty:
+                fig_scatter = px.scatter(rfm_data.sample(min(len(rfm_data), 1000)), x='Frequency', y='Monetary', color='Segment', 
+                                        size='Recency', log_x=True, title="고객 세그먼트 산점도 (샘플링)")
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            else:
+                st.info("산점도를 표시할 고객 데이터가 없습니다.")
 
         st.divider()
         st.subheader("👨‍🌾 셀러별 재구매율 현황")
@@ -370,14 +392,17 @@ if df_raw is not None:
                         
                         df_seller_kw = pd.DataFrame(seller_kw_list)
                         
-                        # 시각화: 히트맵 (셀러별 키워드 활용 비중)
-                        fig_hm = px.imshow(df_seller_kw.set_index('셀러명').drop(columns=['총주문건수']),
-                                           labels=dict(x="키워드 카테고리", y="셀러명", color="사용 비중(%)"),
-                                           x=['이벤트', '맛강조', '가성비', '품종', '원산지'],
-                                           title="상위 30개 셀러의 키워드 활용 패턴 (Heatmap)",
-                                           color_continuous_scale='YlGnBu', text_auto='.1f')
-                        fig_hm.update_layout(height=800)
-                        st.plotly_chart(fig_hm, use_container_width=True)
+                        if not df_seller_kw.empty and len(df_seller_kw.columns) > 1:
+                            # 시각화: 히트맵 (셀러별 키워드 활용 비중)
+                            fig_hm = px.imshow(df_seller_kw.set_index('셀러명').drop(columns=['총주문건수']),
+                                               labels=dict(x="키워드 카테고리", y="셀러명", color="사용 비중(%)"),
+                                               x=['이벤트', '맛강조', '가성비', '품종', '원산지'],
+                                               title="상위 30개 셀러의 키워드 활용 패턴 (Heatmap)",
+                                               color_continuous_scale='YlGnBu', text_auto='.1f')
+                            fig_hm.update_layout(height=800)
+                            st.plotly_chart(fig_hm, use_container_width=True)
+                        else:
+                            st.info("히트맵을 생성할 셀러/키워드 데이터가 부족합니다.")
                         
                         # 데이터 표
                         st.markdown("#### 셀러별 키워드 활용 상세 (비중 %)")
@@ -490,15 +515,18 @@ if df_raw is not None:
             
             df_kw_final = pd.DataFrame(kw_results)
             
-            # 시각화 1: 카테고리별 월별 매출 비중 추이
-            fig_kw_line = px.line(df_kw_final, x='연월', y='비중(%)', color='카테고리', markers=True,
-                                  title="월별 상품 키워드 카테고리 매출 비중 (%)")
-            st.plotly_chart(fig_kw_line, use_container_width=True)
-            
-            # 시각화 2: 누적 매출 비중 (Stack Bar)
-            fig_kw_stack = px.bar(df_kw_final, x='연월', y='비중(%)', color='카테고리',
-                                  title="월별 키워드 매출 기여도 누적 분포", barmode='relative')
-            st.plotly_chart(fig_kw_stack, use_container_width=True)
+            if not df_kw_final.empty:
+                # 시각화 1: 카테고리별 월별 매출 비중 추이
+                fig_kw_line = px.line(df_kw_final, x='연월', y='비중(%)', color='카테고리', markers=True,
+                                      title="월별 상품 키워드 카테고리 매출 비중 (%)")
+                st.plotly_chart(fig_kw_line, use_container_width=True)
+                
+                # 시각화 2: 누적 매출 비중 (Stack Bar)
+                fig_kw_stack = px.bar(df_kw_final, x='연월', y='비중(%)', color='카테고리',
+                                      title="월별 키워드 매출 기여도 누적 분포", barmode='relative')
+                st.plotly_chart(fig_kw_stack, use_container_width=True)
+            else:
+                st.info("키워드 기여도를 분석할 데이터가 부족합니다.")
             
             # 데이터 표
             st.markdown("#### 키워드 카테고리별 월 매출 비중 상세")
