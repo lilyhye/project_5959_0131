@@ -157,7 +157,7 @@ if df_raw is not None:
             
             fig_scatter = px.scatter(rfm_data.sample(min(len(rfm_data), 1000)), x='Frequency', y='Monetary', color='Segment', 
                                     size='Recency', log_x=True, title="고객 세그먼트 산점도 (샘플링)")
-    st.plotly_chart(fig_scatter, use_container_width=True) if t3.expanded else None
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
     with t4:
         st.subheader("지역 및 채널 분석")
