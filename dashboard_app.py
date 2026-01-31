@@ -200,16 +200,24 @@ if df_raw is not None:
                     img_path = img_match.group(2)
                     # 상대 경로를 절대 경로로 변환
                     if not os.path.isabs(img_path):
-                        # ./ 제거 처리
-                        clean_path = img_path.lstrip('./')
-                        full_img_path = os.path.normpath(os.path.join(base_dir, clean_path))
+                        # 경로 후보 리스트 (현재 폴더, eda_results 하위 폴더)
+                        potential_paths = [
+                            os.path.normpath(os.path.join(base_dir, img_path.lstrip('./'))),
+                            os.path.normpath(os.path.join(base_dir, 'eda_results', img_path.lstrip('./')))
+                        ]
+                        
+                        full_img_path = None
+                        for p in potential_paths:
+                            if os.path.exists(p):
+                                full_img_path = p
+                                break
                     else:
                         full_img_path = img_path
                         
-                    if os.path.exists(full_img_path):
+                    if full_img_path and os.path.exists(full_img_path):
                         st.image(full_img_path, caption=alt_text, use_container_width=True)
                     else:
-                        st.warning(f"이미지를 찾을 수 없습니다: {full_img_path}")
+                        st.warning(f"이미지를 찾을 수 없습니다 (검색 경로): {img_path}")
                 else:
                     st.markdown(part)
         else:
