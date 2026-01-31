@@ -182,12 +182,36 @@ if df_raw is not None:
 
     with t6:
         st.subheader("종합 데이터 분석 보고서")
-        report_path = os.path.join(os.path.dirname(data_path), 'total_analysis_report.md') if os.path.isabs(data_path) else 'total_analysis_report.md'
+        report_path = os.path.join(os.path.dirname(os.path.abspath(data_path)), 'total_analysis_report.md')
         
         if os.path.exists(report_path):
             with open(report_path, 'r', encoding='utf-8-sig') as f:
                 report_content = f.read()
-            st.markdown(report_content)
+            
+            # 마크다운 내 이미지 태그를 처리하여 st.image로 출력하는 로직
+            import re
+            parts = re.split(r'(!\[.*?\]\(.*?\))', report_content)
+            base_dir = os.path.dirname(report_path)
+            
+            for part in parts:
+                img_match = re.match(r'!\[(.*?)\]\((.*?)\)', part)
+                if img_match:
+                    alt_text = img_match.group(1)
+                    img_path = img_match.group(2)
+                    # 상대 경로를 절대 경로로 변환
+                    if not os.path.isabs(img_path):
+                        # ./ 제거 처리
+                        clean_path = img_path.lstrip('./')
+                        full_img_path = os.path.normpath(os.path.join(base_dir, clean_path))
+                    else:
+                        full_img_path = img_path
+                        
+                    if os.path.exists(full_img_path):
+                        st.image(full_img_path, caption=alt_text, use_container_width=True)
+                    else:
+                        st.warning(f"이미지를 찾을 수 없습니다: {full_img_path}")
+                else:
+                    st.markdown(part)
         else:
             st.warning(f"보고서 파일을 찾을 수 없습니다: {report_path}")
 
