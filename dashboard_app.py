@@ -139,7 +139,8 @@ if df_raw is not None:
         st.subheader("시즌별 판매 및 재구매율 분석")
         col_s1, col_s2 = st.columns(2)
         with col_s1:
-            season_counts = df['시즌'].value_counts().reset_index()
+            season_counts = df['시즌'].value_counts().reset_index(name='order_count')
+            season_counts.columns = ['시즌', 'count']
             fig_s = px.bar(season_counts, x='시즌', y='count', color='시즌', title="시즌별 주문 비중", 
                            category_orders={"시즌": ["봄", "여름", "가을", "겨울"]})
             st.plotly_chart(fig_s, use_container_width=True)
@@ -163,7 +164,7 @@ if df_raw is not None:
             
             with col_p1:
                 # 1. 재구매 빈도 분포 (주문 횟수별 고객 수)
-                freq_dist = uid_counts.value_counts().reset_index()
+                freq_dist = uid_counts.value_counts().reset_index(name='customer_count')
                 freq_dist.columns = ['주문횟수', '고객수']
                 freq_dist['구분'] = freq_dist['주문횟수'].apply(lambda x: f"{x}회" if x < 5 else "5회 이상")
                 freq_summary = freq_dist.groupby('구분')['고객수'].sum().reset_index()
@@ -220,9 +221,9 @@ if df_raw is not None:
         rfm_data = calculate_rfm(df)
         col_r1, col_r2 = st.columns([1, 2])
         with col_r1:
-            seg_counts = rfm_data['Segment'].value_counts().reset_index()
-            if not seg_counts.empty and seg_counts['count'].sum() > 0:
-                fig_pie = px.pie(seg_counts, values='count', names='Segment', title="고객 세그먼트 비중",
+            seg_counts = rfm_data['Segment'].value_counts().reset_index(name='customer_count')
+            if not seg_counts.empty and seg_counts['customer_count'].sum() > 0:
+                fig_pie = px.pie(seg_counts, values='customer_count', names='Segment', title="고객 세그먼트 비중",
                                  color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig_pie, use_container_width=True)
             else:
@@ -266,12 +267,14 @@ if df_raw is not None:
         col_e1, col_e2 = st.columns(2)
         with col_e1:
             if '광역지역(정식)' in df.columns:
-                reg_df = df['광역지역(정식)'].value_counts().reset_index().head(10)
+                reg_df = df['광역지역(정식)'].value_counts().reset_index(name='order_count').head(10)
+                reg_df.columns = ['광역지역(정식)', 'count']
                 fig_reg = px.bar(reg_df, x='count', y='광역지역(정식)', orientation='h', title="지역별 주문 Top 10")
                 st.plotly_chart(fig_reg, use_container_width=True)
         with col_e2:
             if '주문경로' in df.columns:
-                ch_df = df['주문경로'].value_counts().reset_index()
+                ch_df = df['주문경로'].value_counts().reset_index(name='order_count')
+                ch_df.columns = ['주문경로', 'count']
                 fig_ch = px.pie(ch_df, values='count', names='주문경로', title="주문 채널 비중")
                 st.plotly_chart(fig_ch, use_container_width=True)
 
