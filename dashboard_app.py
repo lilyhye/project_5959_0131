@@ -139,6 +139,65 @@ if df_raw is not None:
                                 x='재구매율(%)', y='품종', orientation='h', title="품종별 재구매율 Top 10", color='재구매율(%)')
                 st.plotly_chart(fig_re, use_container_width=True)
 
+        st.divider()
+        st.subheader("🔁 재구매 고객 구매 패턴 상세 분석")
+        
+        # 재구매 데이터 필터링 (UID별 주문 건수 2건 이상)
+        uid_counts = df['UID'].value_counts()
+        repeat_uids = uid_counts[uid_counts >= 2].index
+        df_repeat = df[df['UID'].isin(repeat_uids)].sort_values(['UID', '주문일'])
+        
+        if not df_repeat.empty:
+            col_p1, col_p2 = st.columns(2)
+            
+            with col_p1:
+                # 1. 재구매 빈도 분포 (주문 횟수별 고객 수)
+                freq_dist = uid_counts.value_counts().reset_index()
+                freq_dist.columns = ['주문횟수', '고객수']
+                freq_dist['구분'] = freq_dist['주문횟수'].apply(lambda x: f"{x}회" if x < 5 else "5회 이상")
+                freq_summary = freq_dist.groupby('구분')['고객수'].sum().reset_index()
+                
+                fig_freq = px.pie(freq_summary, values='고객수', names='구분', title="고객별 총 주문 횟수 비중",
+                                  hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                st.plotly_chart(fig_freq, use_container_width=True)
+                
+            with col_p2:
+                # 2. 구매 주기 분석 (연속 주문 간의 일수 차이)
+                df_repeat['prev_date'] = df_repeat.groupby('UID')['주문일'].shift(1)
+                df_repeat['interval'] = (df_repeat['주문일'] - df_repeat['prev_date']).dt.days
+                intervals = df_repeat['interval'].dropna()
+                
+                if not intervals.empty:
+                    fig_dist = px.histogram(intervals, x='interval', nbins=50, 
+                                            title="재구매 고객의 주문 간격 분포 (Days)",
+                                            labels={'interval': '구매 간격 (일)', 'count': '주문 건수'},
+                                            color_discrete_sequence=['indianred'])
+                    st.plotly_chart(fig_dist, use_container_width=True)
+                    st.info(f"💡 재구매 고객의 평균 구매 주기는 약 **{intervals.mean():.1f}일**입니다.")
+            
+            # 3. 재구매 고객이 선호하는 품종 Top 10 (재구매 건수 기준)
+            st.markdown("#### ⭐ 재구매 고객의 주요 구매 품종")
+            df_repeat_items = df_repeat.groupby('품종').size().reset_index(name='재구매주문건수')
+            fig_rep_items = px.bar(df_repeat_items.sort_values('재구매주문건수', ascending=False).head(10),
+                                   x='재구매주문건수', y='품종', orientation='h', color='재구매주문건수',
+                                   title="재구매 고객이 가장 많이 찾는 품종 Top 10")
+            st.plotly_chart(fig_rep_items, use_container_width=True)
+
+            # 데이터 표
+            st.markdown("#### 재구매 행동 지표 요약")
+            summary_stats = pd.DataFrame({
+                '지표': ['총 재구매 고객 수', '평균 재구매 횟수', '최대 재구매 횟수', '평균 구매 주기'],
+                '수치': [
+                    f"{len(repeat_uids):,}명",
+                    f"{uid_counts[repeat_uids].mean():.2f}회",
+                    f"{uid_counts.max():,}회",
+                    f"{intervals.mean():.1f}일" if not intervals.empty else "N/A"
+                ]
+            })
+            st.table(summary_stats)
+        else:
+            st.info("재구매 고객 데이터가 충분하지 않습니다.")
+
     with t3:
         st.subheader("RFM 고객 세분화 분석")
         rfm_data = calculate_rfm(df)
