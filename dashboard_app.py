@@ -122,18 +122,19 @@ if df_raw is not None:
 
     # 재구매 지표 계산을 위한 기초 데이터 준비 (날짜 기준)
     id_col = '주문자연락처' if '주문자연락처' in df_raw.columns else 'UID'
-    df_unique_day = df.groupby([id_col, df['주문일'].dt.date]).size().reset_index()
+    df_unique_day = df.groupby([id_col, df['주문일'].dt.date]).size().reset_index(name='order_day_count')
     user_day_counts = df_unique_day.groupby(id_col).size()
     repeat_users_count = (user_day_counts >= 2).sum()
     total_users_count = len(user_day_counts)
-    
+
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("총 주문 건수", f"{len(df):,}건")
     m2.metric("총 매출액", f"₩{int(df['실결제 금액'].sum()):,}원")
     m3.metric("평균 객단가", f"₩{int(df['실결제 금액'].mean()):,}원" if len(df)>0 else "0")
     m4.metric("재구매율(날짜기준)", f"{(repeat_users_count / total_users_count * 100):.1f}%" if total_users_count > 0 else "N/A")
 
     # 탭 구성
-    t1, t2, t3, t4, t5, t6, t7 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "� 키워드 매출 분석", "�📋 상세 데이터"])
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "🔍 키워드 매출 분석", "📋 상세 데이터"])
 
     with t1:
         st.subheader("키워드 기반 주문/매출 트렌드")
@@ -173,8 +174,8 @@ if df_raw is not None:
         st.subheader("🔁 재구매 고객 구매 패턴 상세 분석")
         
         # 재구매 데이터 필터링 (아이디별 서로 다른 주문 일수 2일 이상)
-        user_day_counts = df.groupby(id_col)[['주문일']].agg(lambda x: x.dt.date.nunique())
-        repeat_ids = user_day_counts[user_day_counts.iloc[:, 0] >= 2].index
+        user_day_counts_repeat = df.groupby(id_col)[['주문일']].agg(lambda x: x.dt.date.nunique())
+        repeat_ids = user_day_counts_repeat[user_day_counts_repeat.iloc[:, 0] >= 2].index
         
         # 실제 재구매가 일어난 날들만 추출 (동일 날짜 주문은 1건으로 처리하기 위해 unique date로 접근)
         df_target = df[df[id_col].isin(repeat_ids)].copy()
@@ -186,7 +187,7 @@ if df_raw is not None:
             
             with col_p1:
                 # 1. 재구매 빈도 분포 (구매 일수별 고객 수)
-                freq_dist = user_day_counts.value_counts().reset_index(name='customer_count')
+                freq_dist = user_day_counts_repeat.value_counts().reset_index(name='customer_count')
                 freq_dist.columns = ['구매일수', '고객수']
                 freq_dist['구분'] = freq_dist['구매일수'].apply(lambda x: f"{x}일" if x < 5 else "5일 이상")
                 freq_summary = freq_dist.groupby('구분')['고객수'].sum().reset_index()
@@ -234,8 +235,8 @@ if df_raw is not None:
                 '지표': ['총 재구매 고객 수', '평균 구매 일수', '최대 구매 일수', '평균 구매 주기'],
                 '수치': [
                     f"{len(repeat_ids):,}명",
-                    f"{user_day_counts.loc[repeat_ids].mean().iloc[0]:.2f}일",
-                    f"{user_day_counts.max().iloc[0]:,}일",
+                    f"{user_day_counts_repeat.loc[repeat_ids].mean().iloc[0]:.2f}일",
+                    f"{user_day_counts_repeat.max().iloc[0]:,}일",
                     f"{intervals.mean():.1f}일" if not intervals.empty else "N/A"
                 ]
             })
@@ -294,9 +295,9 @@ if df_raw is not None:
         col_e1, col_e2 = st.columns(2)
         with col_e1:
             if '광역지역(정식)' in df.columns:
-                reg_df = df['광역지역(정식)'].value_counts().reset_index(name='order_count').head(10)
+                reg_df = df['광역지역(정식)'].value_counts().reset_index(name='order_count')
                 reg_df.columns = ['광역지역(정식)', 'count']
-                fig_reg = px.bar(reg_df, x='count', y='광역지역(정식)', orientation='h', title="지역별 주문 Top 10")
+                fig_reg = px.bar(reg_df.head(10), x='count', y='광역지역(정식)', orientation='h', title="지역별 주문 Top 10")
                 st.plotly_chart(fig_reg, use_container_width=True)
         with col_e2:
             if '주문경로' in df.columns:
