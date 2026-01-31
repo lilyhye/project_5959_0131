@@ -110,7 +110,7 @@ if df_raw is not None:
     m4.metric("재구매율(전체)", f"{(df['재구매 횟수'] > 0).mean()*100:.1f}%" if '재구매 횟수' in df.columns else "N/A")
 
     # 탭 구성
-    t1, t2, t3, t4, t5 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "📋 상세 데이터"])
+    t1, t2, t3, t4, t5, t6 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "📋 상세 데이터", "📜 종합 분석 보고서"])
 
     with t1:
         st.subheader("키워드 기반 주문/매출 트렌드")
@@ -179,6 +179,17 @@ if df_raw is not None:
         st.dataframe(df.head(500), use_container_width=True)
         csv_data = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         st.download_button("📥 필터링된 데이터 다운로드 (CSV)", csv_data, "filtered_data.csv", "text/csv")
+
+    with t6:
+        st.subheader("종합 데이터 분석 보고서")
+        report_path = os.path.join(os.path.dirname(data_path), 'total_analysis_report.md') if os.path.isabs(data_path) else 'total_analysis_report.md'
+        
+        if os.path.exists(report_path):
+            with open(report_path, 'r', encoding='utf-8-sig') as f:
+                report_content = f.read()
+            st.markdown(report_content)
+        else:
+            st.warning(f"보고서 파일을 찾을 수 없습니다: {report_path}")
 
 else:
     st.error(f"데이터 파일을 찾을 수 없습니다: {data_path}")
