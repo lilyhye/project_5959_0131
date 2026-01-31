@@ -273,23 +273,37 @@ if df_raw is not None:
 
         st.divider()
         st.subheader("👨‍🌾 셀러별 재구매율 현황")
-        if '셀러명' in df.columns and '재구매 횟수' in df.columns:
-            # 셀러별 재구매율 계산 (주문 10건 이상 셀러 대상)
-            seller_counts = df['셀러명'].value_counts()
-            valid_sellers = seller_counts[seller_counts >= 10].index
-            df_valid_sellers = df[df['셀러명'].isin(valid_sellers)]
+        if '셀러명' in df.columns:
+            # 셀러별 재구매율 계산 (주문 10건 이상 셀러 대상, 날짜 기준)
+            # 1. 셀러별/고객별 주문 일수 집계
+            seller_user_days = df.groupby(['셀러명', id_col_kpi])[df['주문일'].dt.date.name if hasattr(df['주문일'].dt.date, 'name') else '주문일'].agg(lambda x: x.dt.date.nunique()).reset_index(name='purchase_days')
             
-            seller_re_rate = df_valid_sellers.groupby('셀러명').apply(
-                lambda x: (x['재구매 횟수'] > 0).mean() * 100
-            ).reset_index(name='재구매율(%)')
+            # 2. 셀러별 전체 고객 수 및 재구매 고객 수 집계
+            def get_seller_re_rate(group):
+                total = len(group)
+                repeat = (group['purchase_days'] >= 2).sum()
+                return (repeat / total * 100) if total > 0 else 0
             
-            fig_seller_re = px.bar(seller_re_rate.sort_values('재구매율(%)', ascending=False).head(20),
-                                   x='재구매율(%)', y='셀러명', orientation='h', 
-                                   title="셀러별 재구매율 Top 20 (주문 10건 이상)",
-                                   color='재구매율(%)', color_continuous_scale='Viridis')
-            st.plotly_chart(fig_seller_re, use_container_width=True)
+            seller_re_rate = seller_user_days.groupby('셀러명').apply(get_seller_re_rate).reset_index(name='재구매율(%)')
+            
+            # 전체 주문 수 정보 추가 (필터링용)
+            seller_order_counts = df['셀러명'].value_counts().reset_index(name='order_count')
+            seller_order_counts.columns = ['셀러명', 'order_count']
+            seller_re_rate = seller_re_rate.merge(seller_order_counts, on='셀러명')
+            
+            # 주문 10건 이상 셀러만 표시
+            seller_re_rate_filtered = seller_re_rate[seller_re_rate['order_count'] >= 10]
+            
+            if not seller_re_rate_filtered.empty:
+                fig_seller_re = px.bar(seller_re_rate_filtered.sort_values('재구매율(%)', ascending=False).head(20),
+                                       x='재구매율(%)', y='셀러명', orientation='h', 
+                                       title="셀러별 재구매율 Top 20 (주문 10건 이상)",
+                                       color='재구매율(%)', color_continuous_scale='Viridis')
+                st.plotly_chart(fig_seller_re, use_container_width=True)
+            else:
+                st.info("조건에 맞는 셀러 데이터가 없습니다.")
         else:
-            st.warning("'셀러명' 또는 '재구매 횟수' 데이터가 부족합니다.")
+            st.warning("'셀러명' 데이터가 부족합니다.")
 
     with t4:
         st.subheader("지역 및 채널 분석")
