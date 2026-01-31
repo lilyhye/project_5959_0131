@@ -35,18 +35,18 @@ def generate_report():
 ### 2.1 핵심 지표 시각화 (5종)
 | 항목 | 시각화 결과 |
 | :--- | :--- |
-| **지역별 주문** | ![지역별 주문 건수]('./eda_results/01_region_counts.png') |
-| **주문경로 비중** | ![주문경로별 비중]('./eda_results/02_order_channel.png') |
-| **결제방법 분포** | ![결제방법 분포]('./eda_results/03_payment_method.png') |
-| **품종별 판매** | ![품종별 판매 건수]('./eda_results/04_product_variety.png') |
-| **가격대별 분포** | ![가격대별 주문 분포]('./eda_results/05_price_range.png') |
+| **지역별 주문** | ![지역별 주문 건수]('01_region_counts.png') |
+| **주문경로 비중** | ![주문경로별 비중]('02_order_channel.png') |
+| **결제방법 분포** | ![결제방법 분포]('03_payment_method.png') |
+| **품종별 판매** | ![품종별 판매 건수]('04_product_variety.png') |
+| **가격대별 분포** | ![가격대별 주문 분포]('05_price_range.png') |
 
 ---
 
 ## 3. 시즌별 품목 선호도 분석
 데이터 내 주문일자를 기반으로 한 사계절별 인기 품목 분석 결과입니다.
 
-![시즌별 인기 품목]('./eda_results/seasonal_product_popularity.png')
+![시즌별 인기 품목]('seasonal_product_popularity.png')
 
 ### 시즌별 상위 주문 데이터
 | 시즌 | 품종 | 주문건수 |
@@ -61,7 +61,7 @@ def generate_report():
 ## 4. 심층 재구매율(Repurchase Rate) 분석
 
 ### 4.1 품목(품종)별 재구매율
-![품종별 재구매율]('./eda_results/repurchase_by_product.png')
+![품종별 재구매율]('repurchase_by_product.png')
 
 | 상위 품종 | 재구매율(%) | 전체주문건수 |
 | :--- | ---: | ---: |
@@ -72,19 +72,19 @@ def generate_report():
 | **황금향** | 52.87 | 749 |
 
 ### 4.2 셀러별 고객 로열티 분석 (주문 10건 이상 대상)
-![셀러별 재구매율]('./eda_results/repurchase_by_seller.png')
+![셀러별 재구매율]('repurchase_by_seller.png')
 - **최우수 셀러**: 제주귤마켓 (96.4%), 규원이네 (95.3%), 황금노지 (94.7%) 등
 
 ### 4.3 회원구분 및 주문경로별 재구매율
-- **회원구분**: 비회원(45.8%)의 재구매율이 회원(30.3%)보다 유의미하게 높게 나타남. ![회원별]('./eda_results/repurchase_by_membership.png')
-- **주문경로**: TICTOK(66.7%), 인스타그램(39.2%), 카카오톡(48.2%) 순. ![경로별]('./eda_results/repurchase_by_channel.png')
+- **회원구분**: 비회원(45.8%)의 재구매율이 회원(30.3%)보다 유의미하게 높게 나타남. ![회원별]('repurchase_by_membership.png')
+- **주문경로**: TICTOK(66.7%), 인스타그램(39.2%), 카카오톡(48.2%) 순. ![경로별]('repurchase_by_channel.png')
 
 ---
 
 ## 5. RFM 기반 고객 세분화 분석
 고객의 구매 행동(최근성, 빈도, 금액)을 기반으로 한 등급 분류 결과입니다.
 
-![RFM 세그먼트]('./eda_results/rfm_customer_segments.png')
+![RFM 세그먼트]('rfm_customer_segments.png')
 
 ### 세그먼트별 평균 지표
 | 등급 | Recency(일) | Frequency(건) | Monetary(원) |
