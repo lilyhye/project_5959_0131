@@ -191,6 +191,7 @@ if df_raw is not None:
             
             # 3. 재구매 고객이 선호하는 품종 Top 10 (재구매 건수 기준)
             st.markdown("#### ⭐ 재구매 고객의 주요 구매 품종")
+            df_repeat_items = df_repeat.groupby('품종').size().reset_index(name='재구매주문건수')
             if not df_repeat_items.empty:
                 fig_rep_items = px.bar(df_repeat_items.sort_values('재구매주문건수', ascending=False).head(10),
                                        x='재구매주문건수', y='품종', orientation='h', color='재구매주문건수',
@@ -529,9 +530,10 @@ if df_raw is not None:
                 st.info("키워드 기여도를 분석할 데이터가 부족합니다.")
             
             # 데이터 표
-            st.markdown("#### 키워드 카테고리별 월 매출 비중 상세")
-            pivot_kw = df_kw_final.pivot(index='연월', columns='카테고리', values='비중(%)').fillna(0)
-            st.dataframe(pivot_kw.style.format("{:.1f}%"), use_container_width=True)
+            if not df_kw_final.empty:
+                st.markdown("#### 키워드 카테고리별 월 매출 비중 상세")
+                pivot_kw = df_kw_final.pivot(index='연월', columns='카테고리', values='비중(%)').fillna(0)
+                st.dataframe(pivot_kw.style.format("{:.1f}%"), use_container_width=True)
         else:
             st.warning("'상품명' 칼럼이 데이터에 존재하지 않아 키워드 분석이 불가능합니다.")
 
