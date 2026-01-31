@@ -200,24 +200,32 @@ if df_raw is not None:
                     img_path = img_match.group(2)
                     # 상대 경로를 절대 경로로 변환
                     if not os.path.isabs(img_path):
-                        # 경로 후보 리스트 (현재 폴더, eda_results 하위 폴더)
-                        potential_paths = [
-                            os.path.normpath(os.path.join(base_dir, img_path.lstrip('./'))),
-                            os.path.normpath(os.path.join(base_dir, 'eda_results', img_path.lstrip('./')))
-                        ]
+                        # 경로 후보 리스트 만들기
+                        clean_name = img_path.lstrip('./')
+                        
+                        # 확장자가 없는 경우 .png를 기본으로 시도
+                        search_names = [clean_name]
+                        if '.' not in clean_name:
+                            search_names.append(clean_name + '.png')
                         
                         full_img_path = None
-                        for p in potential_paths:
-                            if os.path.exists(p):
-                                full_img_path = p
-                                break
+                        for s_name in search_names:
+                            potential_paths = [
+                                os.path.normpath(os.path.join(base_dir, s_name)),
+                                os.path.normpath(os.path.join(base_dir, 'eda_results', s_name))
+                            ]
+                            for p in potential_paths:
+                                if os.path.exists(p):
+                                    full_img_path = p
+                                    break
+                            if full_img_path: break
                     else:
                         full_img_path = img_path
                         
                     if full_img_path and os.path.exists(full_img_path):
                         st.image(full_img_path, caption=alt_text, use_container_width=True)
                     else:
-                        st.warning(f"이미지를 찾을 수 없습니다 (검색 경로): {img_path}")
+                        st.warning(f"이미지를 찾을 수 없습니다: {img_path}")
                 else:
                     st.markdown(part)
         else:
