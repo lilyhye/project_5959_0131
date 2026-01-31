@@ -110,7 +110,7 @@ if df_raw is not None:
     m4.metric("재구매율(전체)", f"{(df['재구매 횟수'] > 0).mean()*100:.1f}%" if '재구매 횟수' in df.columns else "N/A")
 
     # 탭 구성
-    t1, t2, t3, t4, t5 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "📋 상세 데이터"])
+    t1, t2, t3, t4, t5, t6 = st.tabs(["📈 트렌드 비교", "🍂 시즌 & 재구매", "👥 RFM 고객 분석", "📍 기초 EDA", "🛍️ 셀러별 채널 분석", "📋 상세 데이터"])
 
     with t1:
         st.subheader("키워드 기반 주문/매출 트렌드")
@@ -174,6 +174,33 @@ if df_raw is not None:
                 st.plotly_chart(fig_ch, use_container_width=True)
 
     with t5:
+        st.subheader("상위 15개 셀러별 주문경로 분석")
+        if '셀러명' in df.columns and '주문경로' in df.columns:
+            # 상위 15개 셀러 추출
+            top_15_sellers = df['셀러명'].value_counts().head(15).index.tolist()
+            df_top_sellers = df[df['셀러명'].isin(top_15_sellers)]
+            
+            # 셀러별 주문경로 집계
+            seller_channel = df_top_sellers.groupby(['셀러명', '주문경로']).size().reset_index(name='주문건수')
+            
+            # 시각화 (누적 막대 그래프)
+            fig_seller_ch = px.bar(seller_channel, x='주문건수', y='셀러명', color='주문경로', 
+                                   title="상위 15개 셀러의 주문 유입 채널", orientation='h',
+                                   category_orders={"셀러명": top_15_sellers})
+            st.plotly_chart(fig_seller_ch, use_container_width=True)
+            
+            # 데이터 표 (Pivot Table)
+            st.markdown("#### 셀러별 채널별 주문 건수 상세")
+            pivot_seller_ch = df_top_sellers.pivot_table(index='셀러명', columns='주문경로', 
+                                                         values='UID', aggfunc='count', fill_value=0)
+            # 합계 추가 및 상위 순서 유지
+            pivot_seller_ch['합계'] = pivot_seller_ch.sum(axis=1)
+            pivot_seller_ch = pivot_seller_ch.loc[top_15_sellers]
+            st.dataframe(pivot_seller_ch, use_container_width=True)
+        else:
+            st.warning("'셀러명' 또는 '주문경로' 칼럼이 데이터에 존재하지 않습니다.")
+
+    with t6:
         st.subheader("데이터 필터 결과")
         st.write(f"현재 조건에 해당하는 데이터: {len(df):,}건")
         st.dataframe(df.head(500), use_container_width=True)
